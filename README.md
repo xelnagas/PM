@@ -14,6 +14,7 @@ PM est une application desktop moderne, ultra-rapide et autonome de gestion de p
 | 🧪 [**Norme de Développement & TDD (normedev.md)**](./normedev.md) | Standards de code en Rust, pyramide des tests, property testing et pipeline CI. |
 | 🚀 [**Plan de Développement (plandeveloppement.md)**](./plandeveloppement.md) | Feuille de route par phases, WBS, gestion des risques et critères d'acceptation. |
 | 📘 [**Manuel Utilisateur (manuel.md)**](./manuel.md) | Guide pratique d'utilisation, prise en main du Gantt, Kanban et FAQ. |
+| 🎨 [**Maquette de Référence (design.png)**](./design.png) | Design corporate de référence (Sidebar bleue, Tableau de bord, widgets météo/criticité). |
 
 ---
 

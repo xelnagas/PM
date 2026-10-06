@@ -1,6 +1,6 @@
 use chrono::Local;
 use eframe::egui;
-use egui::{Rounding, Stroke};
+use egui::{Color32, Frame, Margin, Rounding, Stroke, Vec2};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -8,17 +8,22 @@ use crate::domain::models::*;
 use crate::services::SchedulerService;
 use crate::storage::Database;
 use crate::ui::calendar_view::CalendarView;
+use crate::ui::dashboard_view::DashboardView;
 use crate::ui::gantt_view::GanttView;
 use crate::ui::kanban_view::KanbanView;
 use crate::ui::modals::*;
 use crate::ui::theme::Theme;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub enum ViewMode {
-    Gantt,
-    Kanban,
-    Calendar,
-    Members,
+pub enum NavigationTab {
+    Dashboard,      // Tableau de bord / Mon travail
+    Portfolio,      // Portefeuille projets
+    GanttPlanning,  // Planning / Gantt du projet actif
+    Kanban,         // Kanban du projet actif
+    Calendar,       // Calendrier chronologique
+    Timesheet,      // Feuille de temps
+    KnowledgeBase,  // Base de connaissance
+    Members,        // Intervenants / Gestion
 }
 
 pub struct PmApp {
@@ -33,8 +38,8 @@ pub struct PmApp {
     members: Vec<UserMember>,
     current_schedule: Option<ScheduleResult>,
 
-    // Navigation & Vues
-    current_view: ViewMode,
+    // Navigation
+    current_tab: NavigationTab,
     selected_task_id: Option<String>,
 
     // États des modales
@@ -42,7 +47,6 @@ pub struct PmApp {
     task_modal: TaskModalState,
     error_alert: ErrorAlertState,
 
-    // Flag pour double-clic
     open_task_modal_flag: bool,
 }
 
@@ -62,7 +66,7 @@ impl PmApp {
             dependencies: Vec::new(),
             members: Vec::new(),
             current_schedule: None,
-            current_view: ViewMode::Gantt,
+            current_tab: NavigationTab::Dashboard,
             selected_task_id: None,
             project_modal: ProjectModalState::default(),
             task_modal: TaskModalState::default(),
@@ -117,6 +121,34 @@ impl PmApp {
             updated_at: chrono::Utc::now().to_rfc3339(),
         };
 
+        let proj2 = Project {
+            id: "prj-dupais".to_string(),
+            workspace_id: "ws-default".to_string(),
+            key_prefix: "AUDIT".to_string(),
+            name: "Audit client Dupuis".to_string(),
+            description: "Audit de conformité et sécurité".to_string(),
+            status: "ACTIVE".to_string(),
+            start_date: today,
+            estimated_end_date: None,
+            is_archived: false,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+
+        let proj3 = Project {
+            id: "prj-rise".to_string(),
+            workspace_id: "ws-default".to_string(),
+            key_prefix: "B12".to_string(),
+            name: "B12 Rise Up 2026".to_string(),
+            description: "Campagne de scaling".to_string(),
+            status: "ACTIVE".to_string(),
+            start_date: today,
+            estimated_end_date: None,
+            is_archived: false,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
+
         let t1 = Task {
             id: "t-1".to_string(),
             project_id: "prj-demo".to_string(),
@@ -144,7 +176,7 @@ impl PmApp {
             project_id: "prj-demo".to_string(),
             assignee_id: Some("user-2".to_string()),
             title: "Développement Core Engine".to_string(),
-            description: "Implémentation du graphe DAG et de la méthode CPM".to_string(),
+            description: "Implémentation du graphe DAG et CPM".to_string(),
             status: TaskStatus::InProgress,
             priority: TaskPriority::Urgent,
             duration_hours: 32,
@@ -238,6 +270,8 @@ impl PmApp {
         {
             let db = self.db.lock();
             let _ = db.insert_project(&proj);
+            let _ = db.insert_project(&proj2);
+            let _ = db.insert_project(&proj3);
             let _ = db.insert_task(&t1);
             let _ = db.insert_task(&t2);
             let _ = db.insert_task(&t3);
@@ -259,228 +293,247 @@ impl eframe::App for PmApp {
         let mut add_dependency_opt = None;
         let mut delete_task_opt = None;
         let mut status_change_opt = None;
-        let mut switch_to_project_id = None;
+        let mut select_project_opt = None;
 
-        // 1. Barre Supérieure : Navigation & Onglets Multi-Projets
-        egui::TopBottomPanel::top("top_panel")
-            .frame(egui::Frame::none()
-                .fill(Theme::PANEL_BG)
-                .stroke(Stroke::new(1.0, Theme::BORDER))
-                .inner_margin(egui::Margin::symmetric(16.0, 12.0)))
+        // 1. SIDEBAR NAVIGATION GAUCHE (Style Bleu Corporate Gouti)
+        egui::SidePanel::left("sidebar_panel")
+            .exact_width(220.0)
+            .frame(Frame::none().fill(Theme::SIDEBAR_BG).inner_margin(Margin::same(12.0)))
             .show(ctx, |ui| {
+                // En-tête Logo
                 ui.horizontal(|ui| {
-                    // Logo & Marque
-                    egui::Frame::none()
-                        .fill(Theme::ACCENT_PRIMARY)
-                        .rounding(Rounding::same(6.0))
-                        .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                        .show(ui, |ui| {
-                            ui.label(egui::RichText::new("🦀 PM").color(egui::Color32::WHITE).strong().size(13.0));
-                        });
+                    // Icône 4 points
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(18.0, 18.0), egui::Sense::hover());
+                    let p = rect.min;
+                    ui.painter().circle_filled(egui::Pos2::new(p.x + 4.0, p.y + 4.0), 3.0, Color32::WHITE);
+                    ui.painter().circle_filled(egui::Pos2::new(p.x + 14.0, p.y + 4.0), 3.0, Color32::WHITE);
+                    ui.painter().circle_filled(egui::Pos2::new(p.x + 4.0, p.y + 14.0), 3.0, Color32::WHITE);
+                    ui.painter().circle_filled(egui::Pos2::new(p.x + 14.0, p.y + 14.0), 3.0, Color32::WHITE);
 
                     ui.add_space(8.0);
+                    ui.heading(egui::RichText::new("Gouti / PM").color(Theme::SIDEBAR_TEXT).size(18.0).strong());
+                });
 
-                    // Onglets en pilules
-                    for p in &self.projects {
-                        let is_active = self.active_project_id.as_deref() == Some(&p.id);
-                        let tab_label = format!("📁 [{}] {}", p.key_prefix, p.name);
-                        
-                        let (bg, text_color, stroke) = if is_active {
-                            (Theme::CARD_BG, Theme::TEXT_TITLE, Stroke::new(1.0, Theme::ACCENT_PRIMARY))
-                        } else {
-                            (egui::Color32::TRANSPARENT, Theme::TEXT_MUTED, Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                        };
+                ui.add_space(16.0);
 
-                        let btn = egui::Button::new(egui::RichText::new(tab_label).color(text_color).size(12.0))
-                            .fill(bg)
-                            .stroke(stroke);
+                // Menu Général
+                render_sidebar_nav_item(ui, "💼 Mon travail", self.current_tab == NavigationTab::Dashboard, || {
+                    self.current_tab = NavigationTab::Dashboard;
+                });
+                render_sidebar_nav_item(ui, "📁 Portefeuille projets", self.current_tab == NavigationTab::Portfolio, || {
+                    self.current_tab = NavigationTab::Portfolio;
+                });
+                render_sidebar_nav_item(ui, "📋 Mes projets", false, || {
+                    self.current_tab = NavigationTab::Dashboard;
+                });
+                render_sidebar_nav_item(ui, "⚙️ Gestion", self.current_tab == NavigationTab::Members, || {
+                    self.current_tab = NavigationTab::Members;
+                });
+                render_sidebar_nav_item(ui, "🎓 Base de connaissance", self.current_tab == NavigationTab::KnowledgeBase, || {
+                    self.current_tab = NavigationTab::KnowledgeBase;
+                });
+                render_sidebar_nav_item(ui, "⏱️ Feuille de temps", self.current_tab == NavigationTab::Timesheet, || {
+                    self.current_tab = NavigationTab::Timesheet;
+                });
 
-                        if ui.add(btn).clicked() {
-                            switch_to_project_id = Some(p.id.clone());
-                        }
-                    }
+                ui.add_space(14.0);
+                ui.separator();
+                ui.add_space(8.0);
 
-                    if ui.button(egui::RichText::new("+ Nouveau Projet").color(Theme::ACCENT_CYAN).size(12.0)).clicked() {
-                        self.project_modal = ProjectModalState {
-                            is_open: true,
-                            is_editing: false,
-                            project_id: String::new(),
-                            key_prefix: String::new(),
-                            name: String::new(),
-                            description: String::new(),
-                            start_date_str: Local::now().date_naive().format("%Y-%m-%d").to_string(),
-                        };
-                    }
+                // Section Projet Actif
+                let active_name = self.projects.iter().find(|p| Some(&p.id) == self.active_project_id.as_ref())
+                    .map(|p| format!("[{}] {}", p.key_prefix, p.name))
+                    .unwrap_or_else(|| "Aucun projet".to_string());
 
-                    // Indicateur de Date de Fin Estimée (Style Badge Élégant)
+                // Encadré de sélection de projet actif
+                Frame::none()
+                    .fill(Theme::SIDEBAR_DARK)
+                    .stroke(Stroke::new(1.0, Color32::from_white_alpha(40)))
+                    .rounding(Rounding::same(4.0))
+                    .inner_margin(Margin::symmetric(10.0, 7.0))
+                    .show(ui, |ui| {
+                        egui::ComboBox::from_id_salt("sidebar_project_combo")
+                            .selected_text(egui::RichText::new(&active_name).color(Color32::WHITE).size(11.5))
+                            .width(170.0)
+                            .show_ui(ui, |ui| {
+                                for p in &self.projects {
+                                    let is_cur = self.active_project_id.as_deref() == Some(&p.id);
+                                    let label = format!("[{}] {}", p.key_prefix, p.name);
+                                    if ui.selectable_label(is_cur, label).clicked() {
+                                        select_project_opt = Some(p.id.clone());
+                                    }
+                                }
+                            });
+                    });
+
+                ui.add_space(10.0);
+
+                // Sous-menus du projet actif
+                render_sidebar_sub_item(ui, "🤝 Cadrage", false, || {});
+                render_sidebar_sub_item(ui, "📈 Progression & contrôle", false, || {});
+                render_sidebar_sub_item(ui, "📊 Planning (Gantt)", self.current_tab == NavigationTab::GanttPlanning, || {
+                    self.current_tab = NavigationTab::GanttPlanning;
+                });
+                render_sidebar_sub_item(ui, "📋 Kanban", self.current_tab == NavigationTab::Kanban, || {
+                    self.current_tab = NavigationTab::Kanban;
+                });
+                render_sidebar_sub_item(ui, "📅 Calendrier", self.current_tab == NavigationTab::Calendar, || {
+                    self.current_tab = NavigationTab::Calendar;
+                });
+                render_sidebar_sub_item(ui, "📑 Rapports", false, || {});
+            });
+
+        // 2. TOP BAR HEADER (Blanc épuré avec boutons d'actions rapides et profil)
+        egui::TopBottomPanel::top("top_panel")
+            .frame(Frame::none().fill(Theme::PANEL_BG).stroke(Stroke::new(1.0, Theme::BORDER)).inner_margin(Margin::symmetric(16.0, 8.0)))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    // Icône de réduction sidebar & raccourcis icônes
+                    ui.label(egui::RichText::new("◀").color(Theme::SIDEBAR_BG).size(14.0));
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("💼 📁 📑 📅 🏷️").size(13.0));
+                    ui.add_space(6.0);
+                    ui.strong(egui::RichText::new("Mon travail").color(Theme::TEXT_TITLE).size(13.5));
+
+                    // Actions rapides cartes blanches en haut à droite
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if let Some(ref sched) = self.current_schedule {
-                            egui::Frame::none()
-                                .fill(Theme::BADGE_BG)
-                                .stroke(Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.5)))
-                                .rounding(Rounding::same(6.0))
-                                .inner_margin(egui::Margin::symmetric(10.0, 5.0))
-                                .show(ui, |ui| {
-                                    ui.label(egui::RichText::new(format!("⏳ Fin Estimée : {} ({}j)", sched.estimated_end_date.format("%d/%m/%Y"), sched.total_duration_days))
-                                        .color(Theme::ACCENT_HOVER)
-                                        .strong()
-                                        .size(12.0));
-                                });
-                        }
+                        // Drapeau & Profil
+                        ui.label(egui::RichText::new("🇫🇷").size(16.0));
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new("👤 Chloé ▼").color(Theme::TEXT_TITLE).size(12.0));
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new("✉️").size(14.0));
+                        
+                        // Badge notification rouge "10"
+                        Frame::none()
+                            .fill(Theme::HEADER_RED)
+                            .rounding(Rounding::same(10.0))
+                            .inner_margin(Margin::symmetric(5.0, 1.0))
+                            .show(ui, |ui| {
+                                ui.label(egui::RichText::new("10").color(Color32::WHITE).size(10.0));
+                            });
 
-                        if self.active_project_id.is_some() {
-                            let add_task_btn = egui::Button::new(egui::RichText::new("+ Nouvelle Tâche").color(egui::Color32::WHITE).strong().size(12.0))
-                                .fill(Theme::ACCENT_PRIMARY);
+                        ui.add_space(16.0);
 
-                            if ui.add(add_task_btn).clicked() {
-                                self.task_modal = TaskModalState {
-                                    is_open: true,
-                                    is_editing: false,
-                                    task_id: String::new(),
-                                    title: String::new(),
-                                    description: String::new(),
-                                    duration_hours: 8,
-                                    priority: TaskPriority::Normal,
-                                    status: TaskStatus::Todo,
-                                    assignee_id: None,
-                                    selected_dependency_pred_id: String::new(),
-                                };
-                            }
+                        // Boutons cartes d'actions rapides
+                        render_top_action_card(ui, "📅 Mon calendrier", || {
+                            self.current_tab = NavigationTab::Calendar;
+                        });
+                        render_top_action_card(ui, "🗂️ Mes tâches", || {
+                            self.current_tab = NavigationTab::Kanban;
+                        });
+                        render_top_action_card(ui, "📑 Rapport d'activités", || {});
+                        
+                        // Bouton Nouveau Projet
+                        if render_top_action_card(ui, "📄 Nouveau projet", || {}) {
+                            self.project_modal = ProjectModalState {
+                                is_open: true,
+                                is_editing: false,
+                                project_id: String::new(),
+                                key_prefix: String::new(),
+                                name: String::new(),
+                                description: String::new(),
+                                start_date_str: Local::now().date_naive().format("%Y-%m-%d").to_string(),
+                            };
                         }
                     });
                 });
+            });
 
-                ui.add_space(8.0);
+        // 3. ZONE CENTRALE DE TRAVAIL (Gris clair de fond)
+        egui::CentralPanel::default()
+            .frame(Frame::none().fill(Theme::BG_MAIN).inner_margin(Margin::same(16.0)))
+            .show(ctx, |ui| {
+                let active_project = self.projects.iter().find(|p| Some(&p.id) == self.active_project_id.as_ref());
+                let start_date = active_project.map(|p| p.start_date).unwrap_or_else(|| Local::now().date_naive());
 
-                // Sous-barre : Segmented Control pour le Sélecteur de Vues
-                ui.horizontal(|ui| {
-                    egui::Frame::none()
-                        .fill(Theme::BG_BASE)
-                        .stroke(Stroke::new(1.0, Theme::BORDER))
-                        .rounding(Rounding::same(8.0))
-                        .inner_margin(egui::Margin::symmetric(4.0, 3.0))
-                        .show(ui, |ui| {
-                            let views = [
-                                (ViewMode::Gantt, "📊 Gantt & Dépendances"),
-                                (ViewMode::Kanban, "📋 Tableau Kanban"),
-                                (ViewMode::Calendar, "📅 Planning"),
-                                (ViewMode::Members, "👥 Intervenants"),
-                            ];
-
-                            for (mode, label) in views {
-                                let is_active = self.current_view == mode;
-                                let bg = if is_active { Theme::CARD_BG } else { egui::Color32::TRANSPARENT };
-                                let text_color = if is_active { Theme::TEXT_TITLE } else { Theme::TEXT_MUTED };
-
-                                let btn = egui::Button::new(egui::RichText::new(label).color(text_color).size(12.0))
-                                    .fill(bg);
-
-                                if ui.add(btn).clicked() {
-                                    self.current_view = mode;
-                                }
-                            }
-                        });
-
-                    if let Some(ref task_id) = self.selected_task_id {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(egui::RichText::new("✏️ Modifier Tâche").size(12.0)).clicked() {
-                                if let Some(t) = self.tasks.iter().find(|t| &t.id == task_id) {
+                match self.current_tab {
+                    NavigationTab::Dashboard | NavigationTab::Portfolio => {
+                        DashboardView::render(
+                            ui,
+                            &self.projects,
+                            &self.tasks,
+                            &mut self.active_project_id,
+                            &mut select_project_opt,
+                            &mut self.open_task_modal_flag,
+                            &mut self.selected_task_id,
+                        );
+                    }
+                    NavigationTab::GanttPlanning => {
+                        ui.horizontal(|ui| {
+                            ui.heading(egui::RichText::new("📊 Planning Gantt & Dépendances").color(Theme::TEXT_TITLE));
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.button(egui::RichText::new("➕ Nouvelle Tâche").color(Color32::WHITE)).clicked() {
                                     self.task_modal = TaskModalState {
                                         is_open: true,
-                                        is_editing: true,
-                                        task_id: t.id.clone(),
-                                        title: t.title.clone(),
-                                        description: t.description.clone(),
-                                        duration_hours: t.duration_hours,
-                                        priority: t.priority,
-                                        status: t.status,
-                                        assignee_id: t.assignee_id.clone(),
+                                        is_editing: false,
+                                        task_id: String::new(),
+                                        title: String::new(),
+                                        description: String::new(),
+                                        duration_hours: 8,
+                                        priority: TaskPriority::Normal,
+                                        status: TaskStatus::Todo,
+                                        assignee_id: None,
                                         selected_dependency_pred_id: String::new(),
                                     };
                                 }
-                            }
+                            });
                         });
+                        ui.add_space(8.0);
+                        GanttView::render(
+                            ui,
+                            start_date,
+                            &self.tasks,
+                            &self.dependencies,
+                            self.current_schedule.as_ref(),
+                            &mut self.selected_task_id,
+                            &mut self.open_task_modal_flag,
+                        );
                     }
-                });
-            });
-
-        if let Some(pid) = switch_to_project_id {
-            self.active_project_id = Some(pid);
-            self.selected_task_id = None;
-            self.refresh_all();
-        }
-
-        // 2. Zone Principale d'Affichage selon la Vue Active
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let active_project = self.projects.iter().find(|p| Some(&p.id) == self.active_project_id.as_ref());
-            let start_date = active_project.map(|p| p.start_date).unwrap_or_else(|| Local::now().date_naive());
-
-            match self.current_view {
-                ViewMode::Gantt => {
-                    GanttView::render(
-                        ui,
-                        start_date,
-                        &self.tasks,
-                        &self.dependencies,
-                        self.current_schedule.as_ref(),
-                        &mut self.selected_task_id,
-                        &mut self.open_task_modal_flag,
-                    );
-                }
-                ViewMode::Kanban => {
-                    KanbanView::render(
-                        ui,
-                        &self.tasks,
-                        &mut self.selected_task_id,
-                        &mut status_change_opt,
-                        &mut self.open_task_modal_flag,
-                    );
-                }
-                ViewMode::Calendar => {
-                    CalendarView::render(
-                        ui,
-                        start_date,
-                        &self.tasks,
-                        &mut self.selected_task_id,
-                        &mut self.open_task_modal_flag,
-                    );
-                }
-                ViewMode::Members => {
-                    ui.add_space(8.0);
-                    ui.heading(egui::RichText::new("👥 Intervenants & Équipe").color(Theme::TEXT_TITLE));
-                    ui.label(egui::RichText::new("Gestion des membres du workspace et des affectations.").color(Theme::TEXT_MUTED));
-                    ui.add_space(14.0);
-                    for m in &self.members {
-                        egui::Frame::none()
-                            .fill(Theme::CARD_BG)
-                            .stroke(Stroke::new(1.0, Theme::BORDER))
-                            .rounding(Rounding::same(8.0))
-                            .inner_margin(egui::Margin::symmetric(16.0, 10.0))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    let initials: String = m.full_name.split_whitespace().filter_map(|w| w.chars().next()).collect();
-                                    egui::Frame::none()
-                                        .fill(Theme::ACCENT_PRIMARY.gamma_multiply(0.25))
-                                        .rounding(Rounding::same(14.0))
-                                        .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                                        .show(ui, |ui| {
-                                            ui.label(egui::RichText::new(initials).color(Theme::ACCENT_HOVER).strong().size(12.0));
+                    NavigationTab::Kanban => {
+                        KanbanView::render(
+                            ui,
+                            &self.tasks,
+                            &mut self.selected_task_id,
+                            &mut status_change_opt,
+                            &mut self.open_task_modal_flag,
+                        );
+                    }
+                    NavigationTab::Calendar => {
+                        CalendarView::render(
+                            ui,
+                            start_date,
+                            &self.tasks,
+                            &mut self.selected_task_id,
+                            &mut self.open_task_modal_flag,
+                        );
+                    }
+                    NavigationTab::Members | NavigationTab::Timesheet | NavigationTab::KnowledgeBase => {
+                        ui.heading(egui::RichText::new("👥 Gestion des Membres & Équipe").color(Theme::TEXT_TITLE));
+                        ui.label(egui::RichText::new("Gestion des utilisateurs, droits et disponibilités.").color(Theme::TEXT_MUTED));
+                        ui.add_space(14.0);
+                        for m in &self.members {
+                            Frame::none()
+                                .fill(Theme::PANEL_BG)
+                                .stroke(Stroke::new(1.0, Theme::BORDER))
+                                .rounding(Rounding::same(6.0))
+                                .inner_margin(Margin::symmetric(14.0, 10.0))
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.strong(egui::RichText::new(&m.full_name).color(Theme::TEXT_TITLE));
+                                        ui.label(egui::RichText::new(format!("({})", m.email)).color(Theme::TEXT_MUTED));
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            ui.colored_label(Theme::SIDEBAR_BG, &m.role);
                                         });
-
-                                    ui.add_space(6.0);
-                                    ui.strong(egui::RichText::new(&m.full_name).color(Theme::TEXT_TITLE));
-                                    ui.label(egui::RichText::new(format!("({})", m.email)).color(Theme::TEXT_MUTED));
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        ui.colored_label(Theme::ACCENT_CYAN, &m.role);
                                     });
                                 });
-                            });
-                        ui.add_space(6.0);
+                            ui.add_space(6.0);
+                        }
                     }
                 }
-            }
-        });
+            });
 
+        // Double-clic déclenché depuis une vue
         if self.open_task_modal_flag {
             self.open_task_modal_flag = false;
             if let Some(ref tid) = self.selected_task_id {
@@ -501,7 +554,7 @@ impl eframe::App for PmApp {
             }
         }
 
-        // 3. Rendu des Modales
+        // 4. Modales
         Modals::render_project_modal(ctx, &mut self.project_modal, &mut save_project_opt);
 
         let cur_proj_id = self.active_project_id.clone().unwrap_or_default();
@@ -521,7 +574,7 @@ impl eframe::App for PmApp {
 
         Modals::render_error_modal(ctx, &mut self.error_alert);
 
-        // 4. Traitement des Actions Utilisateur & Recalcul
+        // 5. Traitement des Actions Utilisateur & Recalcul
         if let Some(p) = save_project_opt {
             let db = self.db.lock();
             let _ = db.insert_project(&p);
@@ -556,6 +609,12 @@ impl eframe::App for PmApp {
             }
         }
 
+        if let Some(pid) = select_project_opt {
+            self.active_project_id = Some(pid);
+            self.selected_task_id = None;
+            self.refresh_all();
+        }
+
         if let Some(tid) = delete_task_opt {
             let db = self.db.lock();
             let _ = db.soft_delete_task(&tid);
@@ -573,5 +632,56 @@ impl eframe::App for PmApp {
                 self.refresh_all();
             }
         }
+    }
+}
+
+fn render_sidebar_nav_item<F: FnOnce()>(ui: &mut egui::Ui, label: &str, is_active: bool, on_click: F) {
+    let (bg, txt_color) = if is_active {
+        (Theme::SIDEBAR_DARK, Color32::WHITE)
+    } else {
+        (Color32::TRANSPARENT, Theme::SIDEBAR_MUTED)
+    };
+
+    let btn = egui::Button::new(egui::RichText::new(label).color(txt_color).size(12.5))
+        .fill(bg)
+        .rounding(Rounding::same(4.0));
+
+    if ui.add(btn).clicked() {
+        on_click();
+    }
+    ui.add_space(2.0);
+}
+
+fn render_sidebar_sub_item<F: FnOnce()>(ui: &mut egui::Ui, label: &str, is_active: bool, on_click: F) {
+    let (bg, txt_color) = if is_active {
+        (Theme::SIDEBAR_DARK, Color32::WHITE)
+    } else {
+        (Color32::TRANSPARENT, Theme::SIDEBAR_MUTED)
+    };
+
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        let btn = egui::Button::new(egui::RichText::new(format!("> {}", label)).color(txt_color).size(11.5))
+            .fill(bg)
+            .rounding(Rounding::same(4.0));
+
+        if ui.add(btn).clicked() {
+            on_click();
+        }
+    });
+    ui.add_space(2.0);
+}
+
+fn render_top_action_card<F: FnOnce()>(ui: &mut egui::Ui, label: &str, on_click: F) -> bool {
+    let btn = egui::Button::new(egui::RichText::new(label).color(Theme::TEXT_TITLE).size(11.5))
+        .fill(Theme::PANEL_BG)
+        .stroke(Stroke::new(1.0, Theme::BORDER))
+        .rounding(Rounding::same(4.0));
+
+    if ui.add(btn).clicked() {
+        on_click();
+        true
+    } else {
+        false
     }
 }
