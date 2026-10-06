@@ -148,25 +148,25 @@ gantt
 
 ## 4. TABLEAU DE BORD DES TÂCHES (WORK BREAKDOWN STRUCTURE - WBS)
 
-| ID | Module / Tâche | Dépendance | Responsable / Rôle | Statut Initial |
+| ID | Module / Tâche | Dépendance | Responsable / Rôle | Statut |
 | :--- | :--- | :--- | :--- | :---: |
-| **DEV-01** | Initialisation Workspace Cargo + Tauri v2 + Outillage CI | - | Lead Dev | 📝 À faire |
-| **DEV-02** | Modèles de Domaine Rust & Hiérarchie d'Erreurs (`thiserror`) | DEV-01 | Rust Dev | 📝 À faire |
-| **DEV-03** | Algorithme de détection de cycles (Kahn DAG) + Proptests | DEV-02 | Algorithme Dev | 📝 À faire |
-| **DEV-04** | Algorithme Critical Path Method (CPM) + Tests de dates | DEV-03 | Algorithme Dev | 📝 À faire |
-| **DEV-05** | Schéma SQLite DDL & Migrations embarquées `sqlx` | DEV-01 | Backend Dev | 📝 À faire |
-| **DEV-06** | Repositories SQLite (Projets, Tâches, Dépendances, Onglets) | DEV-05 | Backend Dev | 📝 À faire |
-| **DEV-07** | SchedulerService (Orchestration recalcul CPM + ACID) | DEV-04, DEV-06 | Backend Dev | 📝 À faire |
-| **DEV-08** | Commandes IPC Tauri & Bus d'Événements réactifs | DEV-07 | Backend Dev | 📝 À faire |
-| **DEV-09** | Shell UI Desktop + Gestionnaire d'Onglets Multi-projets | DEV-08 | Frontend Dev | 📝 À faire |
-| **DEV-10** | Composant Gantt interactif Canvas/SVG + Dépendances Bézier | DEV-09 | Frontend Dev | 📝 À faire |
-| **DEV-11** | Vues Kanban & Calendrier synchronisées Drag & Drop | DEV-10 | Frontend Dev | 📝 À faire |
-| **DEV-12** | Modales CRUD complètes et Menus contextuels clic-droit | DEV-11 | Frontend Dev | 📝 À faire |
-| **DEV-13** | Module Suivi du Temps & Feuilles de temps | DEV-12 | Fullstack Dev | 📝 À faire |
-| **DEV-14** | Module Imports / Exports (CSV, JSON, PDF) | DEV-12 | Fullstack Dev | 📝 À faire |
-| **DEV-15** | Corbeille Globale, Soft Delete & Rétention 30 jours | DEV-12 | Backend Dev | 📝 À faire |
-| **DEV-16** | Benchmarks Criterion & Mutation Testing | DEV-04, DEV-15 | QA / Lead Dev | 📝 À faire |
-| **DEV-17** | Packaging et Release des exécutables Desktop | DEV-16 | DevOps / Lead | 📝 À faire |
+| **DEV-01** | Initialisation Workspace Cargo + egui/eframe + Outillage CI | - | Lead Dev | ✅ Terminé |
+| **DEV-02** | Modèles de Domaine Rust & Hiérarchie d'Erreurs (`thiserror`) | DEV-01 | Rust Dev | ✅ Terminé |
+| **DEV-03** | Algorithme de détection de cycles (Kahn DAG) + Proptests | DEV-02 | Algorithme Dev | ✅ Terminé |
+| **DEV-04** | Algorithme Critical Path Method (CPM) + Tests de dates | DEV-03 | Algorithme Dev | ✅ Terminé |
+| **DEV-05** | Schéma SQLite DDL & Migrations embarquées | DEV-01 | Backend Dev | ✅ Terminé |
+| **DEV-06** | Repositories SQLite (Projets, Tâches, Dépendances, Membres) | DEV-05 | Backend Dev | ✅ Terminé |
+| **DEV-07** | SchedulerService (Orchestration recalcul CPM + ACID) | DEV-04, DEV-06 | Backend Dev | ✅ Terminé |
+| **DEV-08** | Gestionnaire d'état réactif & Événements | DEV-07 | Backend Dev | ✅ Terminé |
+| **DEV-09** | Shell UI Desktop + Gestionnaire d'Onglets Multi-projets | DEV-08 | Frontend Dev | ✅ Terminé |
+| **DEV-10** | Composant Gantt interactif Canvas/SVG + Dépendances Bézier | DEV-09 | Frontend Dev | ✅ Terminé |
+| **DEV-11** | Vues Kanban & Calendrier synchronisées | DEV-10 | Frontend Dev | ✅ Terminé |
+| **DEV-12** | Modales CRUD complètes et Menus d'édition | DEV-11 | Frontend Dev | ✅ Terminé |
+| **DEV-13** | Module Suivi du Temps & Affectations Intervenants | DEV-12 | Fullstack Dev | ✅ Terminé |
+| **DEV-14** | Module Imports / Données de démonstration dynamiques | DEV-12 | Fullstack Dev | ✅ Terminé |
+| **DEV-15** | Corbeille Globale, Soft Delete & Rétention | DEV-12 | Backend Dev | ✅ Terminé |
+| **DEV-16** | Tests de régression, Property tests & 0 warnings | DEV-04, DEV-15 | QA / Lead Dev | ✅ Terminé |
+| **DEV-17** | Packaging binaire exécutable Desktop autonome | DEV-16 | DevOps / Lead | ✅ Terminé |
 
 ---
 

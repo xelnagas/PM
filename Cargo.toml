@@ -1,0 +1,35 @@
+[package]
+name = "pm"
+version = "0.1.0"
+edition = "2021"
+authors = ["PM Team"]
+description = "Plateforme de gestion de projets et planification temporelle avec moteur de graphe DAG & CPM"
+
+[dependencies]
+# GUI Desktop & Rendu interactif 60 FPS
+egui = "0.29"
+eframe = { version = "0.29", default-features = true }
+egui_extras = { version = "0.29", default-features = false, features = ["all_loaders"] }
+
+# Persistance & Base de Données locale SQLite ACID
+rusqlite = { version = "0.32", features = ["bundled", "chrono", "uuid", "backup"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Sérialisation & Données
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Gestion des Erreurs typées
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Concurrence & Utils
+parking_lot = "0.12"
+log = "0.4"
+env_logger = "0.11"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+proptest = "1.5"
+tempfile = "3.12"
