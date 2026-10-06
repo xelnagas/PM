@@ -13,6 +13,7 @@ PM est une application desktop moderne, ultra-rapide et autonome de gestion de p
 | 🏛️ [**Architecture Technique (archi.md)**](./archi.md) | Architecture en couches, schéma relationnel SQLite, moteur de graphe et IPC Tauri. |
 | 🧪 [**Norme de Développement & TDD (normedev.md)**](./normedev.md) | Standards de code en Rust, pyramide des tests, property testing et pipeline CI. |
 | 🚀 [**Plan de Développement (plandeveloppement.md)**](./plandeveloppement.md) | Feuille de route par phases, WBS, gestion des risques et critères d'acceptation. |
+| 📘 [**Manuel Utilisateur (manuel.md)**](./manuel.md) | Guide pratique d'utilisation, prise en main du Gantt, Kanban et FAQ. |
 
 ---
 
