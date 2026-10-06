@@ -14,7 +14,7 @@ impl KanbanView {
     ) {
         let columns = [
             (TaskStatus::Todo, "À FAIRE", Theme::TEXT_MUTED),
-            (TaskStatus::InProgress, "EN COURS", Theme::ACCENT_PRIMARY),
+            (TaskStatus::InProgress, "EN COURS", Theme::ACCENT_CYAN),
             (TaskStatus::Review, "EN REVUE / QA", Theme::WARNING),
             (TaskStatus::Done, "TERMINÉ", Theme::SUCCESS),
         ];
@@ -26,18 +26,26 @@ impl KanbanView {
 
                 egui::Frame::none()
                     .fill(Theme::PANEL_BG)
-                    .rounding(Rounding::same(8.0))
-                    .inner_margin(egui::Margin::same(10.0))
+                    .stroke(Stroke::new(1.0, Theme::BORDER))
+                    .rounding(Rounding::same(10.0))
+                    .inner_margin(egui::Margin::same(12.0))
                     .show(col_ui, |ui| {
                         ui.horizontal(|ui| {
-                            let (rect, _) = ui.allocate_exact_size(Vec2::new(8.0, 16.0), egui::Sense::hover());
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(4.0, 16.0), egui::Sense::hover());
                             ui.painter().rect_filled(rect, Rounding::same(2.0), *accent_color);
-                            ui.strong(*title);
+                            ui.strong(egui::RichText::new(*title).color(Theme::TEXT_TITLE).size(13.0));
+                            
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(format!("({})", col_tasks.len()));
+                                egui::Frame::none()
+                                    .fill(Theme::CARD_BG)
+                                    .rounding(Rounding::same(12.0))
+                                    .inner_margin(egui::Margin::symmetric(8.0, 2.0))
+                                    .show(ui, |ui| {
+                                        ui.label(egui::RichText::new(col_tasks.len().to_string()).color(Theme::TEXT_MUTED).size(11.0));
+                                    });
                             });
                         });
-                        ui.add_space(8.0);
+                        ui.add_space(10.0);
 
                         egui::ScrollArea::vertical()
                             .id_salt(format!("kanban_col_{}", status.as_str()))
@@ -51,43 +59,62 @@ impl KanbanView {
                                         Theme::CARD_BG
                                     };
 
+                                    let card_border = if is_selected {
+                                        Stroke::new(1.5, Theme::ACCENT_PRIMARY)
+                                    } else if task.is_critical {
+                                        Stroke::new(1.0, Theme::CRITICAL_PATH.gamma_multiply(0.6))
+                                    } else {
+                                        Stroke::new(1.0, Theme::BORDER)
+                                    };
+
                                     let card_response = egui::Frame::none()
                                         .fill(card_bg)
-                                        .stroke(Stroke::new(
-                                            if is_selected { 2.0 } else { 1.0 },
-                                            if is_selected { Theme::ACCENT_PRIMARY } else { Theme::BORDER },
-                                        ))
-                                        .rounding(Rounding::same(6.0))
-                                        .inner_margin(egui::Margin::same(10.0))
+                                        .stroke(card_border)
+                                        .rounding(Rounding::same(8.0))
+                                        .inner_margin(egui::Margin::same(12.0))
                                         .show(ui, |ui| {
                                             ui.horizontal(|ui| {
                                                 if task.is_critical {
-                                                    ui.colored_label(Theme::CRITICAL_PATH, "● CRITIQUE");
+                                                    egui::Frame::none()
+                                                        .fill(Theme::CRITICAL_PATH.gamma_multiply(0.2))
+                                                        .rounding(Rounding::same(4.0))
+                                                        .inner_margin(egui::Margin::symmetric(6.0, 2.0))
+                                                        .show(ui, |ui| {
+                                                            ui.label(egui::RichText::new("● CRITIQUE").color(Theme::CRITICAL_PATH).size(10.0));
+                                                        });
                                                 }
                                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                    let prio_color = match task.priority {
-                                                        TaskPriority::Urgent => Theme::CRITICAL_PATH,
-                                                        TaskPriority::High => Theme::WARNING,
-                                                        _ => Theme::TEXT_MUTED,
+                                                    let (prio_color, prio_text) = match task.priority {
+                                                        TaskPriority::Urgent => (Theme::CRITICAL_PATH, "🔥 Urgent"),
+                                                        TaskPriority::High => (Theme::WARNING, "⚡ Haute"),
+                                                        TaskPriority::Normal => (Theme::TEXT_MUTED, "Normale"),
+                                                        TaskPriority::Low => (Theme::TEXT_SUBTLE, "Basse"),
                                                     };
-                                                    ui.colored_label(prio_color, task.priority.label_fr());
+                                                    ui.label(egui::RichText::new(prio_text).color(prio_color).size(10.5));
                                                 });
                                             });
 
-                                            ui.add_space(4.0);
-                                            ui.strong(&task.title);
+                                            ui.add_space(6.0);
+                                            ui.label(egui::RichText::new(&task.title).color(Theme::TEXT_TITLE).strong().size(13.0));
 
                                             if !task.description.is_empty() {
-                                                ui.add_space(2.0);
+                                                ui.add_space(4.0);
                                                 ui.label(egui::RichText::new(&task.description).color(Theme::TEXT_MUTED).size(11.0));
                                             }
 
-                                            ui.add_space(6.0);
+                                            ui.add_space(8.0);
                                             ui.horizontal(|ui| {
-                                                ui.label(format!("⏱ {}h", task.duration_hours));
+                                                egui::Frame::none()
+                                                    .fill(Theme::PANEL_BG)
+                                                    .rounding(Rounding::same(4.0))
+                                                    .inner_margin(egui::Margin::symmetric(6.0, 3.0))
+                                                    .show(ui, |ui| {
+                                                        ui.label(egui::RichText::new(format!("⏱ {}h", task.duration_hours)).color(Theme::TEXT_PRIMARY).size(11.0));
+                                                    });
+
                                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                     egui::ComboBox::from_id_salt(format!("status_combo_{}", task.id))
-                                                        .selected_text(task.status.label_fr())
+                                                        .selected_text(egui::RichText::new(task.status.label_fr()).size(11.0))
                                                         .width(90.0)
                                                         .show_ui(ui, |ui| {
                                                             for s in &[TaskStatus::Todo, TaskStatus::InProgress, TaskStatus::Review, TaskStatus::Done] {
@@ -107,7 +134,7 @@ impl KanbanView {
                                         *selected_task_id = Some(task.id.clone());
                                         *on_open_task_modal = true;
                                     }
-                                    ui.add_space(6.0);
+                                    ui.add_space(8.0);
                                 }
                             });
                     });

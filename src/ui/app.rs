@@ -1,5 +1,6 @@
 use chrono::Local;
 use eframe::egui;
+use egui::{Rounding, Stroke};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -48,9 +49,7 @@ pub struct PmApp {
 impl PmApp {
     pub fn new(cc: &eframe::CreationContext<'_>, db: Arc<Mutex<Database>>) -> Self {
         let mut style = (*cc.egui_ctx.style()).clone();
-        style.visuals.dark_mode = true;
-        style.visuals.panel_fill = Theme::BG_DARK;
-        style.visuals.window_fill = Theme::PANEL_BG;
+        Theme::apply_to_style(&mut style);
         cc.egui_ctx.set_style(style);
 
         let scheduler = SchedulerService::new(db.clone());
@@ -264,21 +263,44 @@ impl eframe::App for PmApp {
 
         // 1. Barre Supérieure : Navigation & Onglets Multi-Projets
         egui::TopBottomPanel::top("top_panel")
-            .frame(egui::Frame::none().fill(Theme::PANEL_BG).inner_margin(egui::Margin::symmetric(14.0, 10.0)))
+            .frame(egui::Frame::none()
+                .fill(Theme::PANEL_BG)
+                .stroke(Stroke::new(1.0, Theme::BORDER))
+                .inner_margin(egui::Margin::symmetric(16.0, 12.0)))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.strong("🦀 PM");
-                    ui.separator();
+                    // Logo & Marque
+                    egui::Frame::none()
+                        .fill(Theme::ACCENT_PRIMARY)
+                        .rounding(Rounding::same(6.0))
+                        .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                        .show(ui, |ui| {
+                            ui.label(egui::RichText::new("🦀 PM").color(egui::Color32::WHITE).strong().size(13.0));
+                        });
 
+                    ui.add_space(8.0);
+
+                    // Onglets en pilules
                     for p in &self.projects {
                         let is_active = self.active_project_id.as_deref() == Some(&p.id);
                         let tab_label = format!("📁 [{}] {}", p.key_prefix, p.name);
-                        if ui.selectable_label(is_active, tab_label).clicked() {
+                        
+                        let (bg, text_color, stroke) = if is_active {
+                            (Theme::CARD_BG, Theme::TEXT_TITLE, Stroke::new(1.0, Theme::ACCENT_PRIMARY))
+                        } else {
+                            (egui::Color32::TRANSPARENT, Theme::TEXT_MUTED, Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                        };
+
+                        let btn = egui::Button::new(egui::RichText::new(tab_label).color(text_color).size(12.0))
+                            .fill(bg)
+                            .stroke(stroke);
+
+                        if ui.add(btn).clicked() {
                             switch_to_project_id = Some(p.id.clone());
                         }
                     }
 
-                    if ui.button("+ Nouveau Projet").clicked() {
+                    if ui.button(egui::RichText::new("+ Nouveau Projet").color(Theme::ACCENT_CYAN).size(12.0)).clicked() {
                         self.project_modal = ProjectModalState {
                             is_open: true,
                             is_editing: false,
@@ -290,17 +312,27 @@ impl eframe::App for PmApp {
                         };
                     }
 
+                    // Indicateur de Date de Fin Estimée (Style Badge Élégant)
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if let Some(ref sched) = self.current_schedule {
-                            ui.colored_label(
-                                Theme::ACCENT_PRIMARY,
-                                format!("⏳ Date de Fin Estimée : {} ({}j)", sched.estimated_end_date.format("%d/%m/%Y"), sched.total_duration_days),
-                            );
-                            ui.separator();
+                            egui::Frame::none()
+                                .fill(Theme::BADGE_BG)
+                                .stroke(Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.5)))
+                                .rounding(Rounding::same(6.0))
+                                .inner_margin(egui::Margin::symmetric(10.0, 5.0))
+                                .show(ui, |ui| {
+                                    ui.label(egui::RichText::new(format!("⏳ Fin Estimée : {} ({}j)", sched.estimated_end_date.format("%d/%m/%Y"), sched.total_duration_days))
+                                        .color(Theme::ACCENT_HOVER)
+                                        .strong()
+                                        .size(12.0));
+                                });
                         }
 
                         if self.active_project_id.is_some() {
-                            if ui.button("+ Nouvelle Tâche").clicked() {
+                            let add_task_btn = egui::Button::new(egui::RichText::new("+ Nouvelle Tâche").color(egui::Color32::WHITE).strong().size(12.0))
+                                .fill(Theme::ACCENT_PRIMARY);
+
+                            if ui.add(add_task_btn).clicked() {
                                 self.task_modal = TaskModalState {
                                     is_open: true,
                                     is_editing: false,
@@ -320,15 +352,38 @@ impl eframe::App for PmApp {
 
                 ui.add_space(8.0);
 
+                // Sous-barre : Segmented Control pour le Sélecteur de Vues
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.current_view, ViewMode::Gantt, "📊 Gantt & Dépendances");
-                    ui.selectable_value(&mut self.current_view, ViewMode::Kanban, "📋 Tableau Kanban");
-                    ui.selectable_value(&mut self.current_view, ViewMode::Calendar, "📅 Planning Chronologique");
-                    ui.selectable_value(&mut self.current_view, ViewMode::Members, "👥 Intervenants");
+                    egui::Frame::none()
+                        .fill(Theme::BG_BASE)
+                        .stroke(Stroke::new(1.0, Theme::BORDER))
+                        .rounding(Rounding::same(8.0))
+                        .inner_margin(egui::Margin::symmetric(4.0, 3.0))
+                        .show(ui, |ui| {
+                            let views = [
+                                (ViewMode::Gantt, "📊 Gantt & Dépendances"),
+                                (ViewMode::Kanban, "📋 Tableau Kanban"),
+                                (ViewMode::Calendar, "📅 Planning"),
+                                (ViewMode::Members, "👥 Intervenants"),
+                            ];
+
+                            for (mode, label) in views {
+                                let is_active = self.current_view == mode;
+                                let bg = if is_active { Theme::CARD_BG } else { egui::Color32::TRANSPARENT };
+                                let text_color = if is_active { Theme::TEXT_TITLE } else { Theme::TEXT_MUTED };
+
+                                let btn = egui::Button::new(egui::RichText::new(label).color(text_color).size(12.0))
+                                    .fill(bg);
+
+                                if ui.add(btn).clicked() {
+                                    self.current_view = mode;
+                                }
+                            }
+                        });
 
                     if let Some(ref task_id) = self.selected_task_id {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button("✏️ Modifier Tâche").clicked() {
+                            if ui.button(egui::RichText::new("✏️ Modifier Tâche").size(12.0)).clicked() {
                                 if let Some(t) = self.tasks.iter().find(|t| &t.id == task_id) {
                                     self.task_modal = TaskModalState {
                                         is_open: true,
@@ -391,20 +446,41 @@ impl eframe::App for PmApp {
                     );
                 }
                 ViewMode::Members => {
-                    ui.heading("👥 Intervenants & Équipe");
-                    ui.label("Gestion des membres du workspace et des affectations.");
-                    ui.add_space(10.0);
+                    ui.add_space(8.0);
+                    ui.heading(egui::RichText::new("👥 Intervenants & Équipe").color(Theme::TEXT_TITLE));
+                    ui.label(egui::RichText::new("Gestion des membres du workspace et des affectations.").color(Theme::TEXT_MUTED));
+                    ui.add_space(14.0);
                     for m in &self.members {
-                        ui.horizontal(|ui| {
-                            ui.strong(&m.full_name);
-                            ui.label(format!("({}) - {}", m.email, m.role));
-                        });
+                        egui::Frame::none()
+                            .fill(Theme::CARD_BG)
+                            .stroke(Stroke::new(1.0, Theme::BORDER))
+                            .rounding(Rounding::same(8.0))
+                            .inner_margin(egui::Margin::symmetric(16.0, 10.0))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    let initials: String = m.full_name.split_whitespace().filter_map(|w| w.chars().next()).collect();
+                                    egui::Frame::none()
+                                        .fill(Theme::ACCENT_PRIMARY.gamma_multiply(0.25))
+                                        .rounding(Rounding::same(14.0))
+                                        .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                                        .show(ui, |ui| {
+                                            ui.label(egui::RichText::new(initials).color(Theme::ACCENT_HOVER).strong().size(12.0));
+                                        });
+
+                                    ui.add_space(6.0);
+                                    ui.strong(egui::RichText::new(&m.full_name).color(Theme::TEXT_TITLE));
+                                    ui.label(egui::RichText::new(format!("({})", m.email)).color(Theme::TEXT_MUTED));
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.colored_label(Theme::ACCENT_CYAN, &m.role);
+                                    });
+                                });
+                            });
+                        ui.add_space(6.0);
                     }
                 }
             }
         });
 
-        // Double-clic déclenché depuis une vue
         if self.open_task_modal_flag {
             self.open_task_modal_flag = false;
             if let Some(ref tid) = self.selected_task_id {
